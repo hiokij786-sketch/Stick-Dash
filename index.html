@@ -1,0 +1,807 @@
+<!DOCTYPE html>  <html lang="en">  
+<head>  
+<meta charset="UTF-8">  
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">  
+<title>STICK DASH: SURVIVAL</title>  
+<style>  
+*{box-sizing:border-box}  
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:white;font-family:monospace;touch-action:none}  
+canvas{display:block;width:100%;height:100%}  
+button{border:2px solid #111;background:white;color:#111;padding:13px 16px;font:bold 14px monospace;border-radius:5px;touch-action:none;min-width:90px}  
+button:active{background:#222;color:white}  
+button:disabled{opacity:.4}  
+#menu,#over,#exitScreen{position:absolute;inset:0;z-index:5;background:white;display:flex;align-items:center;justify-content:center;text-align:center}  
+#over,#exitScreen{display:none}  
+.panel{border:3px solid #111;padding:24px 18px;width:90%;max-width:370px;background:white;color:#111}  
+.logo{font-size:30px;font-weight:bold;letter-spacing:2px}  
+.subtitle{font-size:11px;color:#777;margin:8px}  
+.high{border:2px solid #111;padding:12px;margin:18px auto;max-width:240px;font-size:12px}  
+.high strong{font-size:30px;display:block;margin:7px}  
+.high small{font-size:10px;color:#777}  
+.maker{font-size:11px;color:#777;margin:14px}  
+.menuButtons{display:flex;flex-direction:column;gap:10px;max-width:220px;margin:auto}  
+.menuButtons button{width:100%;padding:14px}  
+#controls{display:none;position:absolute;bottom:12px;left:0;width:100%;z-index:3;justify-content:center;gap:10px;flex-wrap:wrap}  
+#hud{position:absolute;top:10px;left:0;width:100%;z-index:2;text-align:center;font-weight:bold;pointer-events:none;font-size:15px}  
+.exitMessage{font-size:13px;line-height:1.8;color:#555;margin:18px 0}  
+</style>  
+</head>  
+<body>  <div id="menu">  
+ <div class="panel">  
+  <div class="logo">STICK DASH</div>  
+  <div class="subtitle">SURVIVAL EDITION</div>  
+  <div class="high">  
+   ★ HIGHEST SCORE ★  
+   <strong id="menuBest">0</strong>  
+   <small>CREATED BY</small><br>  
+   <b>ENEMY MAY CRY</b>  
+  </div>  
+  <div class="menuButtons">  
+   <button id="start">▶ START GAME</button>  
+   <button id="exit">✕ EXIT GAME</button>  
+  </div>  
+  <div class="maker">RUN • JUMP • SURVIVE</div>  
+ </div>  
+</div>  <div id="exitScreen">  
+ <div class="panel">  
+  <h2>GAME EXIT</h2>  
+  <p>THANKS FOR PLAYING!</p>  
+  <div class="menuButtons">  
+   <button id="backMenu">↩ BACK TO MENU</button>  
+   <button id="closePage">✕ CLOSE THIS PAGE</button>  
+  </div>  
+  <p id="closeMessage" class="exitMessage" style="display:none">  
+   YOU HAVE EXITED THE GAME.<br>  
+   YOU CAN CLOSE THIS PAGE NOW.  
+  </p>  
+ </div>  
+</div>  <div id="over">  
+ <div class="panel">  
+  <h1>GAME OVER</h1>  
+  <p id="finalScore">SCORE: 0</p>  
+  <button id="restart">PLAY AGAIN</button>  
+  <br><br>  
+  <button id="home">MAIN MENU</button>  
+ </div>  
+</div>  <div id="hud"></div>  <div id="controls">  
+ <button id="jump">JUMP ↑</button>  
+ <button id="shield">SHIELD ◈</button>  
+ <button id="duck">DUCK ↓</button>  
+</div>  <canvas id="game"></canvas>
+
+<script>  
+"use strict";  
+  
+const canvas=document.getElementById("game");  
+const ctx=canvas.getContext("2d");  
+const VW=900,VH=506,G=400;  
+  
+let scale=1,ox=0,oy=0;  
+let state="menu",score=0,best=0,hearts=3;  
+let frame=0,speed=5,groundMove=0;  
+let lastTime=0,spawnDistance=350;  
+let obstacles=[],clouds=[],invincible=0,colorMode=false;  
+  
+let planeSection=0;  
+let planeWait=1800;  
+let planeSpawn=100;  
+  
+let patternIndex=0;  
+let patternPosition=0;  
+  
+const patterns=[  
+ [  
+  ["c",1],["c",2],["b"],["c",1],["c",3],["c",1],  
+  ["b"],["c",2],["c",1],["c",4],["b"],["c",2]  
+ ],  
+ [  
+  ["c",2],["c",1],["c",3],["b"],["c",1],["c",2],  
+  ["c",4],["c",1],["b"],["c",3],["c",2],["c",1]  
+ ],  
+ [  
+  ["c",1],["b"],["c",3],["c",2],["c",1],["c",4],  
+  ["b"],["c",2],["c",3],["c",1],["c",2],["c",4]  
+ ],  
+ [  
+  ["c",3],["c",1],["b"],["c",2],["c",4],["c",1],  
+  ["c",2],["b"],["c",3],["c",1],["c",4],["c",2]  
+ ],  
+ [  
+  ["c",2],["c",4],["c",1],["b"],["c",3],["c",2],  
+  ["c",1],["c",4],["b"],["c",2],["c",3],["c",1]  
+ ],  
+ [  
+  ["b"],["c",2],["c",3],["c",1],["c",4],["b"],  
+  ["c",1],["c",3],["c",2],["c",4],["c",1],["c",2]  
+ ],  
+ [  
+  ["c",4],["c",1],["c",2],["b"],["c",3],["c",1],  
+  ["c",4],["c",2],["c",1],["b"],["c",3],["c",2]  
+ ],  
+ [  
+  ["c",1],["c",3],["c",2],["c",4],["b"],["c",1],  
+  ["c",2],["c",3],["c",1],["c",4],["c",2],["b"]  
+ ]  
+];  
+  
+let currentPattern=[];  
+  
+let player={  
+ x:120,y:0,vy:0,jumps:0,  
+ duck:false,shield:0,cooldown:0  
+};  
+  
+const menu=document.getElementById("menu");  
+const over=document.getElementById("over");  
+const exitScreen=document.getElementById("exitScreen");  
+const controls=document.getElementById("controls");  
+const shieldButton=document.getElementById("shield");  
+const hud=document.getElementById("hud");  
+  
+function resize(){  
+ const dpr=window.devicePixelRatio||1;  
+ canvas.width=Math.max(1,Math.floor(innerWidth*dpr));  
+ canvas.height=Math.max(1,Math.floor(innerHeight*dpr));  
+ scale=Math.min(innerWidth/VW,innerHeight/VH);  
+ ox=(innerWidth-VW*scale)/2;  
+ oy=(innerHeight-VH*scale)/2;  
+ if(state!=="playing")render();  
+}  
+addEventListener("resize",resize);  
+  
+function colors(){  
+ colorMode=Math.floor(score/1000)%2===1;  
+ return{  
+  bg:colorMode?"#111":"white",  
+  fg:colorMode?"white":"#111",  
+  grey:colorMode?"#777":"#ddd"  
+ };  
+}  
+  
+function rect(x,y,w,h,color){  
+ ctx.fillStyle=color||colors().fg;  
+ ctx.fillRect(x,y,w,h);  
+}  
+  
+function text(t,x,y,size=18,align="left"){  
+ ctx.fillStyle=colors().fg;  
+ ctx.font="bold "+size+"px monospace";  
+ ctx.textAlign=align;  
+ ctx.fillText(t,x,y);  
+}  
+  
+function drawShield(){  
+ if(player.shield<=0)return;  
+  
+ const x=player.x+42;  
+ const y=G-player.y-43;  
+  
+ ctx.save();  
+ ctx.translate(x+14,y);  
+ ctx.scale(.82,.82);  
+ ctx.translate(-(x+14),-y);  
+  
+ ctx.fillStyle=colorMode?"#444":"#888";  
+ ctx.beginPath();  
+ ctx.moveTo(x+3,y-31);  
+ ctx.lineTo(x+28,y-23);  
+ ctx.lineTo(x+26,y+14);  
+ ctx.lineTo(x+14,y+36);  
+ ctx.lineTo(x+2,y+14);  
+ ctx.closePath();  
+ ctx.fill();  
+  
+ let metal=ctx.createLinearGradient(x,y-30,x+30,y+25);  
+ metal.addColorStop(0,colorMode?"#f5f5f5":"#555");  
+ metal.addColorStop(.3,colorMode?"#aaa":"#aaa");  
+ metal.addColorStop(.6,colorMode?"#eee":"#777");  
+ metal.addColorStop(1,colorMode?"#999":"#333");  
+  
+ ctx.fillStyle=metal;  
+ ctx.strokeStyle=colorMode?"white":"#111";  
+ ctx.lineWidth=3;  
+ ctx.beginPath();  
+ ctx.moveTo(x,y-31);  
+ ctx.quadraticCurveTo(x+14,y-27,x+29,y-22);  
+ ctx.lineTo(x+26,y+13);  
+ ctx.quadraticCurveTo(x+22,y+27,x+14,y+36);  
+ ctx.quadraticCurveTo(x+5,y+27,x+2,y+13);  
+ ctx.closePath();  
+ ctx.fill();  
+ ctx.stroke();  
+  
+ ctx.strokeStyle=colorMode?"#333":"#ddd";  
+ ctx.lineWidth=2;  
+ ctx.beginPath();  
+ ctx.moveTo(x+5,y-23);  
+ ctx.lineTo(x+23,y-18);  
+ ctx.lineTo(x+21,y+11);  
+ ctx.lineTo(x+14,y+27);  
+ ctx.lineTo(x+7,y+11);  
+ ctx.closePath();  
+ ctx.stroke();  
+  
+ ctx.fillStyle=colorMode?"#111":"#eee";  
+ ctx.strokeStyle=colorMode?"white":"#333";  
+ ctx.lineWidth=1.5;  
+ ctx.beginPath();  
+ ctx.moveTo(x+14,y-16);  
+ ctx.lineTo(x+22,y-3);  
+ ctx.lineTo(x+14,y+12);  
+ ctx.lineTo(x+6,y-3);  
+ ctx.closePath();  
+ ctx.fill();  
+ ctx.stroke();  
+  
+ ctx.fillStyle=colorMode?"white":"#333";  
+ ctx.beginPath();  
+ ctx.moveTo(x+14,y-9);  
+ ctx.lineTo(x+18,y-3);  
+ ctx.lineTo(x+14,y+4);  
+ ctx.lineTo(x+10,y-3);  
+ ctx.closePath();  
+ ctx.fill();  
+  
+ ctx.fillStyle=colorMode?"#bbb":"#555";  
+ ctx.fillRect(x-5,y-4,8,19);  
+ ctx.strokeStyle=colorMode?"white":"#111";  
+ ctx.lineWidth=2;  
+ ctx.strokeRect(x-5,y-4,8,19);  
+  
+ ctx.restore();  
+}  
+  
+function drawGround(){  
+ rect(20,G,860,3);  
+ for(let i=0;i<45;i++){  
+  let x=((i*75+groundMove)%900+900)%900;  
+  rect(x,G+12+(i%3)*4,6,2);  
+ }  
+}  
+  
+function drawPlayer(){  
+ let x=player.x;  
+ let base=G-player.y;  
+ let fg=colors().fg;  
+ let swing=Math.sin(frame*.8)*8;  
+  
+ ctx.save();  
+  
+ if(invincible>0&&Math.floor(frame/5)%2===0)  
+  ctx.globalAlpha=.4;  
+  
+ ctx.strokeStyle=fg;  
+ ctx.lineWidth=4;  
+ ctx.lineCap="round";  
+ ctx.lineJoin="round";  
+  
+ if(player.duck){  
+  ctx.beginPath();  
+  ctx.arc(x+26,base-29,9,0,Math.PI*2);  
+  ctx.moveTo(x+20,base-22);  
+  ctx.lineTo(x+12,base-12);  
+  ctx.lineTo(x+30,base-10);  
+  ctx.moveTo(x+15,base-19);  
+  ctx.lineTo(x+3,base-13);  
+  ctx.moveTo(x+23,base-10);  
+  ctx.lineTo(x+15,base);  
+  ctx.moveTo(x+28,base-10);  
+  ctx.lineTo(x+40,base);  
+  ctx.stroke();  
+ }else{  
+  ctx.beginPath();  
+  ctx.arc(x+17,base-58,10,0,Math.PI*2);  
+  ctx.moveTo(x+17,base-48);  
+  ctx.lineTo(x+17,base-20);  
+  ctx.moveTo(x+17,base-40);  
+  ctx.lineTo(x+5,base-29+swing*.4);  
+  ctx.moveTo(x+17,base-40);  
+  ctx.lineTo(x+29,base-29-swing*.4);  
+  ctx.moveTo(x+17,base-20);  
+  ctx.lineTo(x+10+swing,base-8);  
+  ctx.lineTo(x+5+swing,base);  
+  ctx.moveTo(x+17,base-20);  
+  ctx.lineTo(x+24-swing,base-8);  
+  ctx.lineTo(x+29-swing,base);  
+  ctx.stroke();  
+ }  
+  
+ ctx.restore();  
+ drawShield();  
+}  
+  
+function drawCactus(o){  
+ let x=o.x,h=o.h;  
+ rect(x+12,G-h,11,h);  
+ rect(x,G-h+18,12,7);  
+ rect(x,G-h+18,6,20);  
+ rect(x+23,G-h+11,7,7);  
+ rect(x+30,G-h+11,6,19);  
+}  
+  
+function drawBird(o){  
+ let x=o.x,y=o.y;  
+ rect(x+8,y+8,30,9);  
+ rect(x+18,y,18,9);  
+ rect(x+15,y+16,5,5);  
+ rect(x+33,y+16,5,5);  
+ rect(x+36,y+5,9,4);  
+}  
+  
+function drawPlane(o){  
+ const x=o.x,y=o.y;  
+ const fg=colors().fg;  
+ ctx.save();  
+ ctx.fillStyle=fg;  
+  
+ ctx.beginPath();  
+ ctx.moveTo(x,y+13);  
+ ctx.lineTo(x+63,y+13);  
+ ctx.lineTo(x+78,y+9);  
+ ctx.lineTo(x+63,y+5);  
+ ctx.lineTo(x+15,y+5);  
+ ctx.closePath();  
+ ctx.fill();  
+  
+ ctx.beginPath();  
+ ctx.moveTo(x+27,y+7);  
+ ctx.lineTo(x+45,y-8);  
+ ctx.lineTo(x+56,y-8);  
+ ctx.lineTo(x+49,y+8);  
+ ctx.closePath();  
+ ctx.fill();  
+  
+ ctx.beginPath();  
+ ctx.moveTo(x+31,y+11);  
+ ctx.lineTo(x+48,y+26);  
+ ctx.lineTo(x+58,y+26);  
+ ctx.lineTo(x+51,y+10);  
+ ctx.closePath();  
+ ctx.fill();  
+  
+ ctx.beginPath();  
+ ctx.moveTo(x+8,y+7);  
+ ctx.lineTo(x+15,y-1);  
+ ctx.lineTo(x+23,y-1);  
+ ctx.lineTo(x+19,y+8);  
+ ctx.closePath();  
+ ctx.fill();  
+  
+ ctx.fillStyle=colorMode?"#111":"white";  
+ ctx.fillRect(x+61,y+7,7,4);  
+ ctx.restore();  
+}  
+  
+function drawCloud(c){  
+ ctx.strokeStyle=colors().grey;  
+ ctx.lineWidth=2;  
+ ctx.beginPath();  
+ ctx.moveTo(c.x,c.y+18);  
+ ctx.lineTo(c.x+15,c.y+18);  
+ ctx.lineTo(c.x+25,c.y+5);  
+ ctx.lineTo(c.x+42,c.y+5);  
+ ctx.lineTo(c.x+53,c.y+18);  
+ ctx.lineTo(c.x+70,c.y+18);  
+ ctx.stroke();  
+}  
+  
+function addCactusGroup(count){  
+ const spacing=26;  
+ for(let i=0;i<count;i++){  
+  obstacles.push({  
+   x:VW+40+i*spacing,  
+   type:"cactus",  
+   h:36+Math.random()*18  
+  });  
+ }  
+}  
+  
+function addBird(){  
+ obstacles.push({  
+  x:VW+40,  
+  type:"bird",  
+  y:G-84-Math.random()*8  
+ });  
+}  
+  
+function addPlane(){  
+ obstacles.push({  
+  x:VW+60,  
+  y:G-78,  
+  type:"plane"  
+ });  
+}  
+  
+function choosePattern(){  
+ let next=Math.floor(Math.random()*patterns.length);  
+  
+ if(patterns.length>1&&next===patternIndex){  
+  next=(next+1+Math.floor(Math.random()*(patterns.length-1)))%patterns.length;  
+ }  
+  
+ patternIndex=next;  
+ currentPattern=patterns[patternIndex].slice();  
+ patternPosition=0;  
+}  
+  
+function addObstacle(){  
+ if(currentPattern.length===0)choosePattern();  
+  
+ const item=currentPattern[patternPosition];  
+ patternPosition++;  
+  
+ if(patternPosition>=currentPattern.length){  
+  currentPattern=[];  
+ }  
+  
+ if(item[0]==="b"){  
+  if(score>180){  
+   addBird();  
+  }else{  
+   addCactusGroup(1);  
+  }  
+ }else{  
+  let count=item[1];  
+  if(count>=4&&score<350)count=2;  
+  addCactusGroup(count);  
+ }  
+}  
+  
+function nextGap(){  
+ let r=Math.random();  
+ if(r<.72)return 360+Math.random()*90;  
+ if(r<.94)return 420+Math.random()*65;  
+ return 470+Math.random()*50;  
+}  
+  
+function reset(){  
+ score=0;  
+ speed=5;  
+ frame=0;  
+ hearts=3;  
+ invincible=0;  
+ groundMove=0;  
+ spawnDistance=300;  
+ obstacles=[];  
+  
+ planeSection=0;  
+ planeWait=1800;  
+ planeSpawn=100;  
+  
+ patternIndex=-1;  
+ currentPattern=[];  
+ patternPosition=0;  
+ choosePattern();  
+  
+ clouds=[  
+  {x:250,y:120},  
+  {x:650,y:155}  
+ ];  
+  
+ player.y=0;  
+ player.vy=0;  
+ player.jumps=0;  
+ player.duck=false;  
+ player.shield=0;  
+ player.cooldown=0;  
+  
+ updateHUD();  
+}  
+  
+function updateHUD(){  
+ hud.textContent=  
+ "SCORE: "+score+"   "+("♥ ".repeat(hearts))+"   BEST: "+best;  
+  
+ shieldButton.disabled=player.shield>0||player.cooldown>0;  
+  
+ shieldButton.textContent=  
+ player.shield>0?"ACTIVE":  
+ player.cooldown>0?"WAIT "+Math.ceil(player.cooldown/60)+"s":  
+ "SHIELD ◈";  
+}  
+  
+function startGame(){  
+ reset();  
+ state="playing";  
+ menu.style.display="none";  
+ over.style.display="none";  
+ exitScreen.style.display="none";  
+ controls.style.display="flex";  
+  
+ lastTime=performance.now();  
+ render();  
+ requestAnimationFrame(loop);  
+}  
+  
+function jump(){  
+ if(state==="over"){  
+  startGame();  
+  return;  
+ }  
+ if(state!=="playing")return;  
+  
+ if(player.jumps<2){  
+  player.vy=player.jumps===0?12.5:12;  
+  player.jumps++;  
+ }  
+}  
+  
+function activateShield(){  
+ if(state!=="playing")return;  
+ if(player.shield>0||player.cooldown>0)return;  
+  
+ player.shield=180;  
+ updateHUD();  
+}  
+  
+function finish(){  
+ state="over";  
+ best=Math.max(best,score);  
+  
+ try{  
+  localStorage.setItem("stickDashBest_v2",best);  
+ }catch(e){}  
+  
+ document.getElementById("menuBest").textContent=best;  
+ document.getElementById("finalScore").textContent=  
+ "SCORE: "+score+"   BEST: "+best;  
+  
+ over.style.display="flex";  
+ controls.style.display="none";  
+}  
+  
+function hitPlayer(){  
+ if(invincible>0)return;  
+  
+ hearts--;  
+ invincible=85;  
+  
+ if(hearts<=0){  
+  hearts=0;  
+  finish();  
+ }  
+}  
+  
+function render(){  
+ const c=colors();  
+ const dpr=window.devicePixelRatio||1;  
+  
+ ctx.setTransform(  
+  dpr*scale,0,0,dpr*scale,  
+  dpr*ox,dpr*oy  
+ );  
+  
+ ctx.clearRect(0,0,VW,VH);  
+ ctx.fillStyle=c.bg;  
+ ctx.fillRect(0,0,VW,VH);  
+  
+ clouds.forEach(drawCloud);  
+ drawGround();  
+  
+ obstacles.forEach(o=>{  
+  if(o.type==="bird")drawBird(o);  
+  else if(o.type==="plane")drawPlane(o);  
+  else drawCactus(o);  
+ });  
+  
+ drawPlayer();  
+  
+ if(state==="over")  
+  text("GAME OVER",450,210,35,"center");  
+}  
+  
+function loop(now){  
+ if(state!=="playing")return;  
+  
+ let dt=Math.min((now-lastTime)/16.67,2);  
+ lastTime=now;  
+ frame+=dt;  
+  
+ score+=Math.max(1,Math.floor(dt));  
+ speed=Math.min(5+score*.006,17);  
+  
+ if(player.shield>0){  
+  player.shield=Math.max(0,player.shield-dt);  
+  if(player.shield===0)player.cooldown=900;  
+ }else if(player.cooldown>0){  
+  player.cooldown=Math.max(0,player.cooldown-dt);  
+ }  
+  
+ if(invincible>0)invincible-=dt;  
+  
+ if(player.jumps>0){  
+  player.y+=player.vy*dt;  
+  player.vy-=.75*dt;  
+  
+  if(player.y<=0){  
+   player.y=0;  
+   player.vy=0;  
+   player.jumps=0;  
+  }  
+ }  
+  
+ if(planeSection>0){  
+  planeSection-=dt;  
+  planeSpawn-=dt;  
+  
+  if(planeSpawn<=0){  
+   addPlane();  
+   planeSpawn=190+Math.random()*100;  
+  }  
+  
+  if(planeSection<=0){  
+   planeSection=0;  
+   planeWait=1800+Math.random()*800;  
+   spawnDistance=300;  
+  }  
+ }else{  
+  planeWait-=dt;  
+  
+  if(planeWait<=0&&score>500){  
+   planeSection=420+Math.random()*180;  
+   planeSpawn=60;  
+   obstacles=obstacles.filter(o=>o.x<player.x);  
+  }else{  
+   spawnDistance-=speed*dt;  
+  
+   if(spawnDistance<=0){  
+    addObstacle();  
+    spawnDistance=nextGap();  
+   }  
+  }  
+ }  
+  
+ groundMove-=speed*dt;  
+ clouds.forEach(c=>c.x-=speed*.2*dt);  
+ clouds=clouds.filter(c=>c.x>-100);  
+  
+ if(Math.random()<.006*dt){  
+  clouds.push({  
+   x:VW+30,  
+   y:100+Math.random()*90  
+  });  
+ }  
+  
+ let left=player.x-5;  
+ let right=player.x+34;  
+ let top=G-player.y-(player.duck?42:68);  
+ let bottom=G-player.y;  
+  
+ for(let i=obstacles.length-1;i>=0;i--){  
+  let o=obstacles[i];  
+  o.x-=speed*dt;  
+  
+  let ow=o.type==="bird"?49:o.type==="plane"?80:38;  
+  let oy=o.type==="bird"?o.y:o.type==="plane"?o.y-8:G-o.h;  
+  let oh=o.type==="bird"?29:o.type==="plane"?34:o.h;  
+  
+  let collision=  
+   left<o.x+ow-5&&  
+   right>o.x+5&&  
+   bottom>oy+4&&  
+   top<oy+oh-4;  
+  
+  if(collision){  
+   if(player.shield>0){  
+    obstacles.splice(i,1);  
+    continue;  
+   }  
+  
+   hitPlayer();  
+   obstacles.splice(i,1);  
+  
+   if(state!=="playing")return;  
+  }  
+  
+  if(o.x<-120){  
+   obstacles.splice(i,1);  
+  }  
+ }  
+  
+ updateHUD();  
+ render();  
+  
+ if(state==="playing")  
+  requestAnimationFrame(loop);  
+}  
+  
+/* MENU BUTTONS */  
+document.getElementById("start").addEventListener("click",startGame);  
+document.getElementById("restart").addEventListener("click",startGame);  
+  
+document.getElementById("exit").addEventListener("click",()=>{  
+ state="menu";  
+ controls.style.display="none";  
+ menu.style.display="none";  
+ over.style.display="none";  
+ exitScreen.style.display="flex";  
+ document.getElementById("closeMessage").style.display="none";  
+ document.getElementById("backMenu").style.display="block";  
+ document.getElementById("closePage").style.display="block";  
+});  
+  
+document.getElementById("backMenu").addEventListener("click",()=>{  
+ exitScreen.style.display="none";  
+ menu.style.display="flex";  
+ state="menu";  
+ render();  
+});  
+  
+document.getElementById("closePage").addEventListener("click",()=>{  
+ document.getElementById("closeMessage").style.display="block";  
+ document.getElementById("backMenu").style.display="none";  
+ document.getElementById("closePage").style.display="none";  
+ state="menu";  
+ controls.style.display="none";  
+});  
+  
+document.getElementById("home").addEventListener("click",()=>{  
+ state="menu";  
+ over.style.display="none";  
+ controls.style.display="none";  
+ menu.style.display="flex";  
+ render();  
+});  
+  
+document.getElementById("jump").addEventListener("pointerdown",e=>{  
+ e.preventDefault();  
+ jump();  
+});  
+  
+shieldButton.addEventListener("pointerdown",e=>{  
+ e.preventDefault();  
+ activateShield();  
+});  
+  
+const duckButton=document.getElementById("duck");  
+  
+duckButton.addEventListener("pointerdown",e=>{  
+ e.preventDefault();  
+ if(state==="playing")player.duck=true;  
+});  
+  
+function stopDuck(){  
+ player.duck=false;  
+}  
+  
+duckButton.addEventListener("pointerup",stopDuck);  
+duckButton.addEventListener("pointercancel",stopDuck);  
+duckButton.addEventListener("lostpointercapture",stopDuck);  
+  
+document.addEventListener("keydown",e=>{  
+ if(e.code==="Space"||e.code==="ArrowUp"){  
+  e.preventDefault();  
+  if(!e.repeat)jump();  
+ }  
+ if(e.code==="KeyS"&&!e.repeat)  
+  activateShield();  
+  
+ if(e.code==="ArrowDown"&&state==="playing")  
+  player.duck=true;  
+});  
+  
+document.addEventListener("keyup",e=>{  
+ if(e.code==="ArrowDown")  
+  player.duck=false;  
+});  
+  
+/* LOAD PERSONAL HIGH SCORE */  
+try{  
+ best=Number(localStorage.getItem("stickDashBest_v2")||0);  
+}catch(e){  
+ best=0;  
+}  
+  
+document.getElementById("menuBest").textContent=best;  
+  
+clouds=[  
+ {x:250,y:120},  
+ {x:650,y:155}  
+];  
+  
+resize();  
+updateHUD();  
+render();  
+  
+</script>  </body>  
+</html>
